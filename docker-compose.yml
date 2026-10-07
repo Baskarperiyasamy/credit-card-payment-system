@@ -1,0 +1,78 @@
+services:
+  db:
+    build: ./database
+    container_name: payments_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-payments}
+      MYSQL_USER: ${DB_USER:-payments}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-payments_pass}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_pass}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  django:
+    build: ./django_service
+    container_name: payments_django
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_NAME: ${DB_NAME:-payments}
+      DB_USER: ${DB_USER:-payments}
+      DB_PASSWORD: ${DB_PASSWORD:-payments_pass}
+      DB_HOST: db
+      DB_PORT: "3306"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-this-django-secret-key-in-production-0123456789}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
+      JWT_SECRET: ${JWT_SECRET:-change-this-shared-jwt-secret-in-production-0123456789}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  fastapi:
+    build: ./fastapi_service
+    container_name: payments_fastapi
+    restart: unless-stopped
+    depends_on:
+      django:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://${DB_USER:-payments}:${DB_PASSWORD:-payments_pass}@db:3306/${DB_NAME:-payments}
+      JWT_SECRET: ${JWT_SECRET:-change-this-shared-jwt-secret-in-production-0123456789}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    ports:
+      - "8001:8001"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_DJANGO_URL: http://localhost:8000
+        VITE_FASTAPI_URL: http://localhost:8001
+    container_name: payments_frontend
+    restart: unless-stopped
+    depends_on:
+      - django
+      - fastapi
+    ports:
+      - "3000:80"
+
+volumes:
+  db_data:

@@ -1,0 +1,123 @@
+import csv
+
+from django.db.models import Count, DecimalField, Q, Sum, Value
+from django.db.models.functions import Coalesce, TruncDate
+from django.http import HttpResponse
+from django.utils import timezone
+from rest_framework import generics
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from accounts.models import User
+from cards.models import Card
+from transactions.filters import apply_filters
+from transactions.models import Transaction
+from transactions.serializers import TransactionSerializer
+
+from .models import AdminLog
+from .serializers import AdminCardSerializer, AdminLogSerializer, AdminUserSerializer
+
+
+def log_action(admin, action, details=""):
+    AdminLog.objects.create(admin=admin, action=action, details=details[:255])
+
+
+class AdminUserList(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = AdminUserSerializer
+
+    def get_queryset(self):
+        qs = User.objects.annotate(card_count=Count("cards", distinct=True), transaction_count=Count("transactions", distinct=True))
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(username__icontains=search) | Q(email__icontains=search))
+        return qs.order_by("id")
+
+
+class AdminUserDetail(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = AdminUserSerializer
+    queryset = User.objects.annotate(card_count=Count("cards", distinct=True), transaction_count=Count("transactions", distinct=True))
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def perform_update(self, serializer):
+        if serializer.instance.pk == self.request.user.pk and serializer.validated_data.get("is_active") is False:
+            raise ValidationError({"is_active": "You cannot deactivate your own account."})
+        user = serializer.save()
+        state = "activated" if user.is_active else "deactivated"
+        log_action(self.request.user, "USER_" + state.upper(), f"User {user.username} {state}")
+
+
+class AdminCardList(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = AdminCardSerializer
+    queryset = Card.objects.select_related("user").order_by("-created_at")
+
+
+class AdminTransactionList(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = TransactionSerializer
+
+    def get_queryset(self):
+        return apply_filters(Transaction.objects.select_related("user"), self.request.query_params)
+
+
+def _safe_cell(value):
+    text = str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
+
+class TransactionExportView(APIView):
+    """Admin-only CSV export. Accepts the same filters as the transaction list."""
+
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        queryset = apply_filters(Transaction.objects.select_related("user"), request.query_params)
+        response = HttpResponse(content_type="text/csv")
+        stamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+        response["Content-Disposition"] = f'attachment; filename="transactions_{stamp}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(["id", "reference", "username", "card_last4", "amount", "currency", "status", "failure_reason", "description", "created_at"])
+        for t in queryset.iterator():
+            writer.writerow([
+                t.id, t.reference, _safe_cell(t.user.username), t.card_last4, t.amount, t.currency,
+                t.status, _safe_cell(t.failure_reason), _safe_cell(t.description), t.created_at.isoformat(),
+            ])
+        log_action(request.user, "EXPORT_CSV", f"Exported {queryset.count()} transactions")
+        return response
+
+
+class DailySummaryView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        zero = Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))
+        daily = (
+            Transaction.objects.annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(
+                total=Count("id"),
+                success=Count("id", filter=Q(status=Transaction.Status.SUCCESS)),
+                failed=Count("id", filter=Q(status=Transaction.Status.FAILED)),
+                pending=Count("id", filter=Q(status=Transaction.Status.PENDING)),
+                success_amount=Coalesce(Sum("amount", filter=Q(status=Transaction.Status.SUCCESS)), zero),
+            )
+            .order_by("-day")[:30]
+        )
+        return Response({
+            "totals": {
+                "users": User.objects.count(),
+                "cards": Card.objects.count(),
+                "transactions": Transaction.objects.count(),
+            },
+            "daily": list(daily),
+        })
+
+
+class AdminLogList(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = AdminLogSerializer
+    queryset = AdminLog.objects.select_related("admin")
