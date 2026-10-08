@@ -33,7 +33,7 @@ def detect_brand(number):
 class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
-        fields = ("id", "cardholder_name", "brand", "masked_number", "last4", "expiry_month", "expiry_year", "created_at")
+        fields = ("id", "cardholder_name", "brand", "masked_number", "last4", "expiry_month", "expiry_year", "credit_limit", "is_blocked", "created_at")
         read_only_fields = fields
 
 

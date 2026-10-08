@@ -15,7 +15,7 @@ class Transaction(models.Model):
     card = models.ForeignKey("cards.Card", on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions")
     card_last4 = models.CharField(max_length=4, blank=True, default="")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.CharField(max_length=3, default="INR")
     description = models.CharField(max_length=255, blank=True, default="")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     failure_reason = models.CharField(max_length=255, blank=True, default="")

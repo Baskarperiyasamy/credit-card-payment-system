@@ -1,6 +1,7 @@
 import csv
+from decimal import Decimal
 
-from django.db.models import Count, DecimalField, Q, Sum, Value
+from django.db.models import Count, DecimalField, Q, Sum, Value, Max
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import HttpResponse
 from django.utils import timezone
@@ -18,6 +19,7 @@ from transactions.serializers import TransactionSerializer
 
 from .models import AdminLog
 from .serializers import AdminCardSerializer, AdminLogSerializer, AdminUserSerializer
+from notifications import card_blocked_alert
 
 
 def log_action(admin, action, details=""):
@@ -53,7 +55,63 @@ class AdminUserDetail(generics.RetrieveUpdateAPIView):
 class AdminCardList(generics.ListAPIView):
     permission_classes = [IsAdminUser]
     serializer_class = AdminCardSerializer
-    queryset = Card.objects.select_related("user").order_by("-created_at")
+
+    def get_queryset(self):
+        return (
+            Card.objects.select_related("user")
+            .annotate(
+                transaction_count=Count("transactions", distinct=True),
+                successful_spend=Coalesce(
+                    Sum("transactions__amount", filter=Q(transactions__status=Transaction.Status.SUCCESS)),
+                    Value(0, output_field=DecimalField(max_digits=14, decimal_places=2)),
+                ),
+                last_activity=Max("transactions__created_at"),
+            )
+            .order_by("-created_at")
+        )
+
+
+
+class AdminCardDetail(APIView):
+    """Admin-only card controls: block/unblock and credit-limit updates."""
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        try:
+            card = Card.objects.select_related("user").get(pk=pk)
+        except Card.DoesNotExist:
+            return Response({"detail": "Card not found."}, status=404)
+
+        changed = []
+        if "credit_limit" in request.data:
+            try:
+                limit = Decimal(str(request.data["credit_limit"]))
+            except Exception:
+                raise ValidationError({"credit_limit": "Enter a valid credit limit."})
+            if limit < Decimal("100"):
+                raise ValidationError({"credit_limit": "Credit limit must be at least 100."})
+            if limit > Decimal("10000000"):
+                raise ValidationError({"credit_limit": "Credit limit is too high."})
+            card.credit_limit = limit
+            changed.append(f"credit limit set to {limit}")
+
+        if "is_blocked" in request.data:
+            blocked = request.data["is_blocked"]
+            if not isinstance(blocked, bool):
+                raise ValidationError({"is_blocked": "is_blocked must be true or false."})
+            was_blocked = card.is_blocked
+            card.is_blocked = blocked
+            card.blocked_at = timezone.now() if blocked else None
+            changed.append("blocked" if blocked else "unblocked")
+            if blocked and not was_blocked:
+                card_blocked_alert(card.user, card)
+
+        if not changed:
+            raise ValidationError({"detail": "Provide is_blocked and/or credit_limit."})
+
+        card.save(update_fields=["credit_limit", "is_blocked", "blocked_at"])
+        log_action(request.user, "CARD_UPDATED", f"Card {card.id}: {', '.join(changed)}")
+        return Response(AdminCardSerializer(card).data)
 
 
 class AdminTransactionList(generics.ListAPIView):

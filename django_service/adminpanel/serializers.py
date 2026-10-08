@@ -18,11 +18,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
 class AdminCardSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source="user.username", read_only=True)
+    transaction_count = serializers.IntegerField(read_only=True)
+    successful_spend = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    last_activity = serializers.DateTimeField(read_only=True, allow_null=True)
 
     class Meta:
         model = Card
-        fields = ("id", "username", "cardholder_name", "brand", "masked_number", "expiry_month", "expiry_year", "created_at")
-        read_only_fields = fields
+        fields = ("id", "username", "cardholder_name", "brand", "masked_number", "expiry_month", "expiry_year", "credit_limit", "is_blocked", "blocked_at", "created_at", "transaction_count", "successful_spend", "last_activity")
+        read_only_fields = ("id", "username", "cardholder_name", "brand", "masked_number", "expiry_month", "expiry_year", "blocked_at", "created_at", "transaction_count", "successful_spend", "last_activity")
 
 
 class AdminLogSerializer(serializers.ModelSerializer):

@@ -10,11 +10,10 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [cards, setCards] = useState(null);
   const [error, setError] = useState("");
+  const [statementBusy, setStatementBusy] = useState(false);
 
   useEffect(() => {
-    api.cards()
-      .then(setCards)
-      .catch((e) => setError(errorText(e.data)));
+    api.cards().then(setCards).catch((e) => setError(errorText(e.data)));
   }, []);
 
   async function remove(card) {
@@ -27,36 +26,74 @@ export default function Dashboard() {
     }
   }
 
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Welcome back, {user.username}</h1>
-          <p className="text-sm text-slate-600">Your card usage at a glance.</p>
-        </div>
-        <Link to="/pay" className="btn">Make a payment</Link>
-      </div>
-      <DashboardStats />
-      <ErrorBox message={error} />
+  async function statement() {
+    const d = new Date();
+    setStatementBusy(true);
+    setError("");
+    try {
+      await api.downloadStatement(d.getFullYear(), d.getMonth() + 1);
+    } catch (e) {
+      setError(errorText(e.data));
+    } finally {
+      setStatementBusy(false);
+    }
+  }
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Saved cards</h2>
-          <Link to="/cards/new" className="text-sm font-semibold text-brand hover:underline">Add a card</Link>
-        </div>
-        {cards === null ? (
-          <p className="text-sm text-slate-500">Loading cards...</p>
-        ) : cards.length === 0 ? (
-          <div className="panel text-center">
-            <p className="text-slate-600">No cards saved yet. Add one to start paying.</p>
-            <Link to="/cards/new" className="btn mt-4">Add your first card</Link>
+  return (
+    <div className="app-page">
+      <div className="page-shell space-y-7 sm:space-y-8">
+        <section className="hero-card rounded-[28px]">
+          <div className="relative z-10 grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-end lg:p-10">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.16em]" style={{ borderColor: "var(--border)", background: "var(--surface-2)", color: "var(--muted)" }}>
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" /> Personal finance dashboard
+              </div>
+              <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">Welcome back, {user.username}</h1>
+              <p className="theme-muted mt-4 max-w-xl text-sm leading-7 sm:text-base">
+                Track spending, monitor available credit, manage saved cards and keep every payment organized in one secure place.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              <button className="btn-ghost" disabled={statementBusy} onClick={statement}>
+                {statementBusy ? "Generating..." : "Download statement"}
+              </button>
+              <Link to="/pay" className="btn">Make a payment</Link>
+            </div>
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {cards.map((c) => <CreditCard key={c.id} card={c} onDelete={remove} />)}
+        </section>
+
+        <ErrorBox message={error} />
+        <DashboardStats />
+
+        <section>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="section-label">Payment methods</p>
+              <h2 className="mt-1 text-2xl font-black">Your saved cards</h2>
+              <p className="theme-muted mt-1 text-sm">Securely stored as masked card details.</p>
+            </div>
+            <Link to="/cards/new" className="btn-ghost">+ Add a card</Link>
           </div>
-        )}
-      </section>
+
+          {cards === null ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="skeleton h-48 animate-pulse rounded-2xl" />
+              <div className="skeleton h-48 animate-pulse rounded-2xl" />
+            </div>
+          ) : cards.length === 0 ? (
+            <div className="panel text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-soft text-2xl font-black text-brand">+</div>
+              <h3 className="mt-4 text-lg font-bold">No cards saved yet</h3>
+              <p className="theme-muted mt-1 text-sm">Add a card to start making payments from your dashboard.</p>
+              <Link to="/cards/new" className="btn mt-5">Add your first card</Link>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {cards.map((c) => <CreditCard key={c.id} card={c} onDelete={remove} />)}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

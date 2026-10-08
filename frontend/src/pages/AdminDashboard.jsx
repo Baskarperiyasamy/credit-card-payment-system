@@ -113,23 +113,64 @@ function Users() {
 }
 
 function Cards() {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [error, setError] = useState("");
+
+  async function update(card, body) {
+    setError("");
+    try {
+      await api.admin.updateCard(card.id, body);
+      setRefreshKey(v => v + 1);
+    } catch (e) { setError(errorText(e.data)); }
+  }
+
   return (
-    <Paged
-      load={(page) => api.admin.cards({ page })}
-      head={["ID", "User", "Cardholder", "Brand", "Number", "Expires", "Added"]}
-      empty="No cards saved."
-      row={(c) => (
-        <tr key={c.id}>
-          <td className="td">{c.id}</td>
-          <td className="td font-medium">{c.username}</td>
-          <td className="td">{c.cardholder_name}</td>
-          <td className="td">{c.brand}</td>
-          <td className="td font-mono">{c.masked_number}</td>
-          <td className="td">{String(c.expiry_month).padStart(2, "0")}/{c.expiry_year}</td>
-          <td className="td whitespace-nowrap">{when(c.created_at)}</td>
-        </tr>
-      )}
-    />
+    <div className="space-y-4">
+      <ErrorBox message={error} />
+      <Paged
+        key={refreshKey}
+        load={(page) => api.admin.cards({ page })}
+        head={["ID", "User", "Card", "Credit limit", "Status", "Activity", "Action"]}
+        empty="No cards saved."
+        row={(c) => (
+          <tr key={c.id}>
+            <td className="td">{c.id}</td>
+            <td className="td font-medium">{c.username}</td>
+            <td className="td">
+              <div className="font-semibold">{c.brand}</div>
+              <div className="font-mono text-xs text-slate-500">{c.masked_number}</div>
+              <div className="text-xs text-slate-500">{c.cardholder_name} · {String(c.expiry_month).padStart(2, "0")}/{String(c.expiry_year).slice(-2)}</div>
+            </td>
+            <td className="td">
+              <input
+                aria-label={`Credit limit for card ${c.id}`}
+                type="number" min="100" step="100"
+                defaultValue={c.credit_limit}
+                className="max-w-[9rem]"
+                onBlur={(e) => {
+                  const value = Number(e.target.value);
+                  if (value && value !== Number(c.credit_limit)) update(c, { credit_limit: value });
+                }}
+              />
+            </td>
+            <td className="td">
+              <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${c.is_blocked ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"}`}>
+                {c.is_blocked ? "BLOCKED" : "ACTIVE"}
+              </span>
+            </td>
+            <td className="td"><div className="font-semibold">{c.transaction_count ?? 0} transactions</div><div className="text-xs text-slate-500">Spend: {money(c.successful_spend ?? 0)}</div><div className="text-xs text-slate-500">{c.blocked_at ? `Blocked ${when(c.blocked_at)}` : c.last_activity ? `Last used ${when(c.last_activity)}` : "No activity yet"}</div></td>
+            <td className="td">
+              <button
+                className={c.is_blocked ? "btn" : "btn-ghost"}
+                onClick={() => update(c, { is_blocked: !c.is_blocked })}
+              >
+                {c.is_blocked ? "Unblock" : "Block"}
+              </button>
+            </td>
+          </tr>
+        )}
+      />
+    </div>
   );
 }
 
@@ -203,7 +244,10 @@ export default function AdminDashboard() {
   const views = { "Daily summary": <Summary />, Users: <Users />, Cards: <Cards />, Transactions: <AllTransactions />, "Admin logs": <Logs /> };
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Admin dashboard</h1>
+      <div>
+        <h1 className="text-3xl font-black tracking-tight">Admin control center</h1>
+        <p className="mt-1 text-sm text-slate-500">Monitor users, cards, payments and security events.</p>
+      </div>
       <div role="tablist" className="flex flex-wrap gap-2 border-b border-slate-300">
         {TABS.map((t) => (
           <button

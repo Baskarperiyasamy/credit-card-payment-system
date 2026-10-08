@@ -22,7 +22,7 @@ export function StatusBadge({ status }) {
 }
 
 export const money = (v) =>
-  Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" });
+  Number(v).toLocaleString("en-US", { style: "currency", currency: "INR" });
 
 export const when = (iso) =>
   new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });

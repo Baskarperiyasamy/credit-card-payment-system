@@ -23,6 +23,11 @@ app.include_router(payments_router)
 app.include_router(dashboard_router)
 
 
+@app.get("/", tags=["health"])
+def home():
+    return {"service": "fastapi", "status": "ok", "docs": "/docs", "health": "/health"}
+
+
 @app.get("/health", tags=["health"])
 def health():
     return {"status": "ok", "service": "fastapi"}

@@ -11,11 +11,17 @@ class Card(models.Model):
     expiry_month = models.PositiveSmallIntegerField()
     expiry_year = models.PositiveSmallIntegerField()
     credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=10000)
+    is_blocked = models.BooleanField(default=False)
+    blocked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "cards"
         ordering = ["-created_at"]
+
+    @property
+    def status(self):
+        return "BLOCKED" if self.is_blocked else "ACTIVE"
 
     def __str__(self):
         return f"{self.brand} {self.masked_number}"

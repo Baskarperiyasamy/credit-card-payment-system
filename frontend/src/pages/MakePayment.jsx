@@ -67,7 +67,7 @@ export default function MakePayment() {
             </select>
           </div>
           <div>
-            <label htmlFor="amount">Amount (USD)</label>
+            <label htmlFor="amount">Amount (INR)</label>
             <input id="amount" type="number" min="0.01" max="100000" step="0.01" value={form.amount} onChange={set("amount")} placeholder="0.00" required />
           </div>
           <div>

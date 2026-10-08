@@ -1,5 +1,5 @@
-const DJANGO = import.meta.env.VITE_DJANGO_URL || "http://localhost:8000";
-const FASTAPI = import.meta.env.VITE_FASTAPI_URL || "http://localhost:8001";
+const DJANGO = import.meta.env.VITE_DJANGO_URL || "http://127.0.0.1:8000";
+const FASTAPI = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8001";
 
 export const tokens = {
   get access() { return localStorage.getItem("access"); },
@@ -103,6 +103,17 @@ export const api = {
   deleteCard: (id) => request(DJANGO, `/api/cards/${id}/`, { method: "DELETE" }),
   pay: (body) => request(FASTAPI, "/api/payments/", { method: "POST", body }),
   transactions: (params) => request(DJANGO, `/api/transactions/${qs(params)}`),
+  async downloadStatement(year, month) {
+    const res = await raw(DJANGO, `/api/statements/monthly/?year=${year}&month=${month}`);
+    if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ledgerly_statement_${year}_${String(month).padStart(2, "0")}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
   // redirect:false -> the dashboard shows its own "JWT failed" message instead of bouncing to /login
   dashboardSummary: () => request(FASTAPI, "/dashboard/summary", { redirect: false }),
   admin: {
@@ -110,6 +121,7 @@ export const api = {
     users: (params) => request(DJANGO, `/api/admin/users/${qs(params)}`),
     setActive: (id, is_active) => request(DJANGO, `/api/admin/users/${id}/`, { method: "PATCH", body: { is_active } }),
     cards: (params) => request(DJANGO, `/api/admin/cards/${qs(params)}`),
+    updateCard: (id, body) => request(DJANGO, `/api/admin/cards/${id}/`, { method: "PATCH", body }),
     transactions: (params) => request(DJANGO, `/api/admin/transactions/${qs(params)}`),
     logs: (params) => request(DJANGO, `/api/admin/logs/${qs(params)}`),
     async exportCsv(params) {

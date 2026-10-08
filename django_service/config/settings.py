@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "cards",
     "transactions",
     "adminpanel",
+    "statements",
 ]
 
 MIDDLEWARE = [
@@ -127,3 +128,14 @@ CORS_ALLOWED_ORIGINS = [
     for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
     if o.strip()
 ]
+
+
+# Transactional email notifications. Docker uses Mailpit by default for safe local testing.
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", os.getenv("SMTP_HOST", "localhost"))
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", os.getenv("SMTP_PORT", "1025")))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", os.getenv("SMTP_USER", ""))
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", os.getenv("SMTP_PASSWORD", ""))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", os.getenv("SMTP_TLS", "0")) == "1"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", os.getenv("SMTP_SSL", "0")) == "1"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", os.getenv("SMTP_FROM", "Ledgerly Security <no-reply@ledgerly.local>"))

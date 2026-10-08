@@ -5,6 +5,11 @@
 - [ ] Postman collection: `postman/Credit_Card_Payment_System.postman_collection.json`
 - [ ] UI screenshots: `docs/screenshots/` (see SCREENSHOTS_GUIDE.md)
 - [ ] Admin credentials: username `admin`, password `Admin@12345`
+- [ ] SMTP demo: Mailpit at `http://localhost:8025`
+- [ ] Sprint email triggers: > INR 5,000, card blocked, credit below 10%
+- [ ] Dark mode persistence checked after refresh
+- [ ] Monthly PDF statement downloaded and reviewed
+- [ ] Admin card block/unblock and credit-limit update tested
 
 ## GIT_COMMANDS
 
