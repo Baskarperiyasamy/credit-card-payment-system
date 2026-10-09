@@ -34,6 +34,19 @@ def apply_filters(queryset, params):
         else:
             queryset = queryset.filter(status=status)
 
-    if errors:
-        raise ValidationError(errors)
-    return queryset
+    masked = params.get("masked_card") or params.get("card_last4")
+    if masked:
+        digits = "".join(ch for ch in masked if ch.isdigit())[-4:]
+        if digits: queryset = queryset.filter(card_last4=digits)
+    search = params.get("search")
+    if search:
+        from django.db.models import Q
+        queryset = queryset.filter(Q(reference__icontains=search) | Q(description__icontains=search) | Q(card_last4__icontains=search))
+    fraud_status = params.get("fraud_status")
+    if fraud_status:
+        queryset = queryset.filter(fraud_status=fraud_status.upper())
+    ordering = params.get("ordering", "-created_at")
+    allowed = {"created_at", "-created_at", "amount", "-amount", "status", "-status"}
+    if ordering not in allowed: errors["ordering"] = "Choose created_at, -created_at, amount, -amount, status, or -status."
+    if errors: raise ValidationError(errors)
+    return queryset.order_by(ordering, "-id")

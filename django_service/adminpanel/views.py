@@ -2,7 +2,7 @@ import csv
 from decimal import Decimal
 
 from django.db.models import Count, DecimalField, Q, Sum, Value, Max
-from django.db.models.functions import Coalesce, TruncDate
+from django.db.models.functions import Coalesce, TruncDate, TruncMonth
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import generics
@@ -14,11 +14,11 @@ from rest_framework.views import APIView
 from accounts.models import User
 from cards.models import Card
 from transactions.filters import apply_filters
-from transactions.models import Transaction
+from transactions.models import Transaction, FraudLog
 from transactions.serializers import TransactionSerializer
 
 from .models import AdminLog
-from .serializers import AdminCardSerializer, AdminLogSerializer, AdminUserSerializer
+from .serializers import AdminCardSerializer, AdminLogSerializer, AdminUserSerializer, FraudLogSerializer
 from notifications import card_blocked_alert
 
 
@@ -47,9 +47,20 @@ class AdminUserDetail(generics.RetrieveUpdateAPIView):
     def perform_update(self, serializer):
         if serializer.instance.pk == self.request.user.pk and serializer.validated_data.get("is_active") is False:
             raise ValidationError({"is_active": "You cannot deactivate your own account."})
+        if serializer.instance.pk == self.request.user.pk and serializer.validated_data.get("role") not in (None, "ADMIN"):
+            raise ValidationError({"role": "You cannot remove your own admin role."})
+        previous_role = serializer.instance.role
         user = serializer.save()
-        state = "activated" if user.is_active else "deactivated"
-        log_action(self.request.user, "USER_" + state.upper(), f"User {user.username} {state}")
+        # Keep Django's staff gate aligned with the application RBAC role.
+        desired_staff = user.role == "ADMIN"
+        if user.is_staff != desired_staff:
+            user.is_staff = desired_staff
+            user.save(update_fields=["is_staff"])
+        if previous_role != user.role:
+            log_action(self.request.user, "USER_ROLE_CHANGED", f"User {user.username}: {previous_role} -> {user.role}")
+        if "is_active" in serializer.validated_data:
+            state = "activated" if user.is_active else "deactivated"
+            log_action(self.request.user, "USER_" + state.upper(), f"User {user.username} {state}")
 
 
 class AdminCardList(generics.ListAPIView):
@@ -179,3 +190,71 @@ class AdminLogList(generics.ListAPIView):
     permission_classes = [IsAdminUser]
     serializer_class = AdminLogSerializer
     queryset = AdminLog.objects.select_related("admin")
+
+
+class AnalyticsView(APIView):
+    """Spending analytics for current user, or system-wide for staff."""
+    def get(self, request):
+        qs = Transaction.objects.filter(status=Transaction.Status.SUCCESS, user=request.user)
+        monthly = list(qs.annotate(month=TruncMonth("created_at")).values("month").annotate(total=Sum("amount")).order_by("month"))
+        categories = list(qs.values("category").annotate(total=Sum("amount")).order_by("-total"))
+        spent_by_card = Card.objects.filter(user=request.user).annotate(spent=Coalesce(Sum("transactions__amount", filter=Q(transactions__status="SUCCESS")), Value(0, output_field=DecimalField(max_digits=14, decimal_places=2))))
+        utilization = [{"card": c.masked_number, "limit": float(c.credit_limit), "spent": float(c.spent), "utilization_percent": round(float(c.spent) / float(c.credit_limit) * 100, 2) if c.credit_limit else 0} for c in spent_by_card]
+        return Response({"monthly_spending": [{"month": str(x["month"]), "total": float(x["total"] or 0)} for x in monthly], "category_spending": [{"category": x["category"], "total": float(x["total"] or 0)} for x in categories], "credit_utilization": utilization})
+
+
+class SystemHealthView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        from django.db import connection
+        from django.db.models import Avg
+        from datetime import timedelta
+        start = timezone.now() - timedelta(hours=24)
+        try:
+            with connection.cursor() as cursor: cursor.execute("SELECT 1")
+            db_status = "ok"
+        except Exception: db_status = "error"
+        recent = Transaction.objects.filter(created_at__gte=start)
+        return Response({"status": "ok" if db_status == "ok" else "degraded", "database": db_status, "transactions_24h": recent.count(), "failed_transactions_24h": recent.filter(status="FAILED").count(), "fraud_flagged_24h": recent.exclude(fraud_status="CLEAR").count(), "generated_at": timezone.now().isoformat()})
+
+
+class AnalyticsExportView(APIView):
+    """CSV analytics export; use format=pdf for a printable PDF summary."""
+    def get(self, request):
+        qs = Transaction.objects.filter(user=request.user, status="SUCCESS")
+        totals = qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        by_category = list(qs.values("category").annotate(total=Sum("amount")).order_by("-total"))
+        fmt = request.query_params.get("format", "csv").lower()
+        if fmt == "pdf":
+            from django.http import HttpResponse
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter
+            response = HttpResponse(content_type="application/pdf")
+            response["Content-Disposition"] = 'attachment; filename="analytics-summary.pdf"'
+            pdf = canvas.Canvas(response, pagesize=letter)
+            pdf.setTitle("Ledgerly Analytics Summary")
+            pdf.drawString(50, 750, "Ledgerly - Analytics Summary")
+            pdf.drawString(50, 728, f"Account: {request.user.username}")
+            pdf.drawString(50, 706, f"Successful spending: INR {totals}")
+            y = 674; pdf.drawString(50, y, "Spending by category")
+            for item in by_category:
+                y -= 20
+                if y < 60: pdf.showPage(); y = 750
+                pdf.drawString(60, y, f"{str(item['category'])[:45]}: INR {item['total']}")
+            pdf.save(); return response
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="analytics-summary.csv"'
+        writer = csv.writer(response); writer.writerow(["summary", "value"]); writer.writerow(["successful_spend", totals]); writer.writerow([]); writer.writerow(["category", "amount"])
+        for item in by_category: writer.writerow([_safe_cell(item["category"]), item["total"]])
+        return response
+
+
+class FraudLogList(generics.ListAPIView):
+    permission_classes = [IsAdminUser]
+    serializer_class = FraudLogSerializer
+    queryset = FraudLog.objects.all()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user_id = self.request.query_params.get("user_id")
+        return qs.filter(user_id=user_id) if user_id else qs

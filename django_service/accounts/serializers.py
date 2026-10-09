@@ -10,7 +10,7 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "username", "email", "first_name", "last_name", "is_staff", "date_joined")
+        fields = ("id", "username", "email", "first_name", "last_name", "is_staff", "role", "date_joined")
         read_only_fields = fields
 
 
@@ -43,6 +43,7 @@ class LoginSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         token["username"] = user.username
         token["is_staff"] = user.is_staff
+        token["role"] = user.role
         return token
 
     def validate(self, attrs):

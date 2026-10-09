@@ -19,6 +19,11 @@ class Transaction(models.Model):
     description = models.CharField(max_length=255, blank=True, default="")
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     failure_reason = models.CharField(max_length=255, blank=True, default="")
+    category = models.CharField(max_length=80, blank=True, default="Other", db_index=True)
+    fraud_status = models.CharField(max_length=16, default="CLEAR", db_index=True)
+    fraud_reason = models.CharField(max_length=255, blank=True, default="")
+    location = models.CharField(max_length=120, blank=True, default="")
+    device_id = models.CharField(max_length=120, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -33,3 +38,15 @@ class Transaction(models.Model):
 
     def __str__(self):
         return f"{self.reference} {self.status}"
+
+
+class FraudLog(models.Model):
+    transaction_id = models.BigIntegerField(db_index=True)
+    user_id = models.BigIntegerField(db_index=True)
+    reason = models.CharField(max_length=255)
+    location = models.CharField(max_length=120, blank=True, default="")
+    device_id = models.CharField(max_length=120, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = "fraud_logs"
+        ordering = ["-created_at", "-id"]

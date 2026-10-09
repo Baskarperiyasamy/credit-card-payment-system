@@ -1,11 +1,13 @@
 from rest_framework import mixins, status, viewsets
 from rest_framework.response import Response
+from accounts.permissions import CardRolePermission
 
 from .models import Card
 from .serializers import CardCreateSerializer, CardSerializer
 
 
 class CardViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    permission_classes = [CardRolePermission]
     pagination_class = None
 
     def get_queryset(self):

@@ -1,5 +1,8 @@
-const DJANGO = import.meta.env.VITE_DJANGO_URL || "http://127.0.0.1:8000";
-const FASTAPI = import.meta.env.VITE_FASTAPI_URL || "http://127.0.0.1:8001";
+// Vite variables are compiled into the frontend image. These browser-facing URLs
+// intentionally use loopback ports published by docker-compose.
+const HOST = window.location.hostname || "127.0.0.1";
+const DJANGO = import.meta.env.VITE_DJANGO_URL || `http://${HOST}:8000`;
+const FASTAPI = import.meta.env.VITE_FASTAPI_URL || `http://${HOST}:8001`;
 
 export const tokens = {
   get access() { return localStorage.getItem("access"); },
@@ -103,6 +106,13 @@ export const api = {
   deleteCard: (id) => request(DJANGO, `/api/cards/${id}/`, { method: "DELETE" }),
   pay: (body) => request(FASTAPI, "/api/payments/", { method: "POST", body }),
   transactions: (params) => request(DJANGO, `/api/transactions/${qs(params)}`),
+  analytics: () => request(DJANGO, "/api/analytics/"),
+  async exportAnalytics(format = "csv") {
+    const res = await raw(DJANGO, `/api/analytics/export/${qs({ format })}`);
+    if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
+    const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a");
+    a.href = url; a.download = `analytics-summary.${format}`; a.click(); URL.revokeObjectURL(url);
+  },
   async downloadStatement(year, month) {
     const res = await raw(DJANGO, `/api/statements/monthly/?year=${year}&month=${month}`);
     if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));
@@ -120,10 +130,13 @@ export const api = {
     summary: () => request(DJANGO, "/api/admin/summary/"),
     users: (params) => request(DJANGO, `/api/admin/users/${qs(params)}`),
     setActive: (id, is_active) => request(DJANGO, `/api/admin/users/${id}/`, { method: "PATCH", body: { is_active } }),
+    setRole: (id, role) => request(DJANGO, `/api/admin/users/${id}/`, { method: "PATCH", body: { role } }),
     cards: (params) => request(DJANGO, `/api/admin/cards/${qs(params)}`),
     updateCard: (id, body) => request(DJANGO, `/api/admin/cards/${id}/`, { method: "PATCH", body }),
     transactions: (params) => request(DJANGO, `/api/admin/transactions/${qs(params)}`),
     logs: (params) => request(DJANGO, `/api/admin/logs/${qs(params)}`),
+    fraudLogs: (params) => request(DJANGO, `/api/admin/fraud-logs/${qs(params)}`),
+    health: () => request(DJANGO, "/api/admin/health/"),
     async exportCsv(params) {
       const res = await raw(DJANGO, `/api/admin/transactions/export/${qs(params)}`);
       if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => ({})));

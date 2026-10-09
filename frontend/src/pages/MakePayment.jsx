@@ -3,9 +3,20 @@ import { Link } from "react-router-dom";
 import { api, errorText } from "../api.js";
 import { ErrorBox, StatusBadge, money } from "../components/Ui.jsx";
 
+const CATEGORIES = ["Shopping", "Food & Dining", "Travel", "Bills & Utilities", "Entertainment", "Health", "Fuel", "Other"];
+const LOCATIONS = ["Chennai", "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Kolkata", "Pune"];
+
+function deviceId() {
+  try {
+    let id = localStorage.getItem("ledgerly-device");
+    if (!id) { id = `web-${Math.random().toString(36).slice(2, 8)}`; localStorage.setItem("ledgerly-device", id); }
+    return id;
+  } catch { return "web-browser"; }
+}
+
 export default function MakePayment() {
   const [cards, setCards] = useState(null);
-  const [form, setForm] = useState({ card_id: "", amount: "", description: "", simulate: "" });
+  const [form, setForm] = useState({ card_id: "", amount: "", description: "", simulate: "", category: "Shopping", location: "Chennai", device_id: deviceId() });
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,6 +43,9 @@ export default function MakePayment() {
         amount: form.amount,
         description: form.description,
         simulate: form.simulate || null,
+        category: form.category,
+        location: form.location.trim(),
+        device_id: form.device_id.trim(),
       };
       setResult(await api.pay(body));
       setForm((f) => ({ ...f, amount: "", description: "" }));
@@ -74,6 +88,24 @@ export default function MakePayment() {
             <label htmlFor="desc">Description</label>
             <input id="desc" maxLength={255} value={form.description} onChange={set("description")} placeholder="What is this for?" />
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="cat">Category</label>
+              <select id="cat" value={form.category} onChange={set("category")}>
+                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="loc">Location</label>
+              <input id="loc" list="loc-list" maxLength={120} value={form.location} onChange={set("location")} placeholder="e.g. Chennai" />
+              <datalist id="loc-list">{LOCATIONS.map((l) => <option key={l} value={l} />)}</datalist>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="dev">Device ID</label>
+            <input id="dev" maxLength={120} value={form.device_id} onChange={set("device_id")} placeholder="e.g. web-ab12cd" />
+            <p className="mt-1 text-xs text-slate-500">Fraud check: paying again within 10 minutes from a different location or device flags the payment.</p>
+          </div>
           <div>
             <label htmlFor="sim">Simulated outcome</label>
             <select id="sim" value={form.simulate} onChange={set("simulate")}>
@@ -94,7 +126,12 @@ export default function MakePayment() {
               <StatusBadge status={result.status} />
             </div>
             <p className="text-3xl font-bold">{money(result.amount)}</p>
-            {result.status === "FAILED" && <p className="text-sm text-red-700">{result.failure_reason}</p>}
+            {result.fraud_status === "FLAGGED" && (
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                ⚠ Flagged as suspicious{result.fraud_reason ? `: ${result.fraud_reason}` : ""}. An alert email was sent.
+              </div>
+            )}
+            {result.status === "FAILED" && <p className="text-sm text-red-700 dark:text-red-300">{result.failure_reason}</p>}
             <dl className="space-y-1 text-sm text-slate-600">
               <div className="flex justify-between"><dt>Card</dt><dd className="font-mono">•••• {result.card_last4}</dd></div>
               <div><dt>Reference</dt><dd className="break-all font-mono text-xs">{result.reference}</dd></div>

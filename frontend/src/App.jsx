@@ -3,6 +3,7 @@ import { useAuth } from "./auth.jsx";
 import Navbar from "./components/Navbar.jsx";
 import AddCard from "./pages/AddCard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import Analytics from "./pages/Analytics.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Login from "./pages/Login.jsx";
 import MakePayment from "./pages/MakePayment.jsx";
@@ -16,7 +17,7 @@ function Protected({ admin = false }) {
   return (
     <>
       <Navbar />
-      <main>
+      <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8">
         <Outlet />
       </main>
     </>
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/cards/new" element={<AddCard />} />
         <Route path="/pay" element={<MakePayment />} />
         <Route path="/transactions" element={<Transactions />} />
+        <Route path="/analytics" element={<Analytics />} />
       </Route>
       <Route element={<Protected admin />}>
         <Route path="/admin" element={<AdminDashboard />} />

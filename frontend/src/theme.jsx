@@ -5,27 +5,17 @@ const ThemeContext = createContext(null);
 function getInitialTheme() {
   const saved = localStorage.getItem("ledgerly-theme");
   if (saved === "dark" || saved === "light") return saved;
-  return "light";
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(getInitialTheme);
-
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.dataset.theme = theme;
-    root.style.colorScheme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.style.colorScheme = theme;
     localStorage.setItem("ledgerly-theme", theme);
   }, [theme]);
-
-  const value = useMemo(() => ({
-    theme,
-    setTheme,
-    toggleTheme: () => setTheme((value) => value === "dark" ? "light" : "dark"),
-  }), [theme]);
-
+  const value = useMemo(() => ({ theme, toggleTheme: () => setTheme(v => v === "dark" ? "light" : "dark") }), [theme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
-
 export const useTheme = () => useContext(ThemeContext);

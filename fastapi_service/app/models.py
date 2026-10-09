@@ -41,14 +41,31 @@ class Transaction(Base):
     description: Mapped[str] = mapped_column(String(255), default="")
     status: Mapped[str] = mapped_column(String(10), default="PENDING")
     failure_reason: Mapped[str] = mapped_column(String(255), default="")
+    category: Mapped[str] = mapped_column(String(80), default="Other")
+    fraud_status: Mapped[str] = mapped_column(String(16), default="CLEAR")
+    fraud_reason: Mapped[str] = mapped_column(String(255), default="")
+    location: Mapped[str] = mapped_column(String(120), default="")
+    device_id: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
 class UserEmail(Base):
-    """Minimal read-only mirror of Django's users table for notification delivery."""
+    """Minimal read-only mirror of Django's users table for notification delivery and role checks."""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(BigInt, primary_key=True)
     username: Mapped[str] = mapped_column(String(150))
     email: Mapped[str] = mapped_column(String(254))
+    role: Mapped[str] = mapped_column(String(24), default="CUSTOMER")
+
+
+class FraudLog(Base):
+    __tablename__ = "fraud_logs"
+    id: Mapped[int] = mapped_column(BigInt, primary_key=True, autoincrement=True)
+    transaction_id: Mapped[int] = mapped_column(BigInt, index=True)
+    user_id: Mapped[int] = mapped_column(BigInt, index=True)
+    reason: Mapped[str] = mapped_column(String(255))
+    location: Mapped[str] = mapped_column(String(120), default="")
+    device_id: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime)

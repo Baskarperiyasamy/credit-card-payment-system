@@ -52,3 +52,9 @@ def low_credit_email(email, username, last4, available, limit, percentage):
         f"Hello {username},\n\nYour card ending {last4} has {percentage:.1f}% of its credit limit available.\n"
         f"Remaining: INR {available:,.2f} of INR {limit:,.2f}.\n\nPlease review your recent activity.",
     )
+
+
+def fraud_alert_email(email, username, amount, reference, last4, reason):
+    return send_email(email, "Ledgerly security alert: suspicious transaction blocked",
+        f"Hello {username},\n\nA payment of INR {Decimal(str(amount)):,.2f} on card ending {last4} was blocked by automated fraud checks.\n"
+        f"Reason: {reason}\nReference: {reference}\n\nIf this was you, please contact support.")

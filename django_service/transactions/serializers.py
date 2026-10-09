@@ -10,6 +10,6 @@ class TransactionSerializer(serializers.ModelSerializer):
         model = Transaction
         fields = (
             "id", "reference", "username", "card", "card_last4", "amount", "currency",
-            "description", "status", "failure_reason", "created_at", "updated_at",
+            "description", "status", "failure_reason", "category", "fraud_status", "fraud_reason", "location", "device_id", "created_at", "updated_at",
         )
         read_only_fields = fields

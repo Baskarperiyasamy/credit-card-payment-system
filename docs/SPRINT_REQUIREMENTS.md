@@ -71,3 +71,11 @@ All admin card endpoints require Django `IsAdminUser` permission.
 - Admin credit limits have lower and upper validation bounds.
 - PDF statements expose masked cards only.
 - JWT authentication protects customer/admin APIs.
+
+
+## Extended implementation
+- Role registry and role field: `ADMIN`, `SUPPORT`, `READ_ONLY`, `CUSTOMER`; server-side role permissions are applied to card mutation and transaction endpoints. Admin-only operations remain staff restricted.
+- Existing `admin_logs` records admin card changes; fraud metadata is stored on transactions and suspicious velocity is checked by FastAPI.
+- Analytics: `/api/analytics/`, `/api/analytics/export/?format=csv|pdf`; system health: `/api/admin/health/`.
+- Transaction search supports date range, amount range, status, masked card, free-text reference/description, fraud status and sort order; standard DRF page-number pagination remains enabled.
+- Request latency and 5xx failures are logged by `RequestMetricsMiddleware`.

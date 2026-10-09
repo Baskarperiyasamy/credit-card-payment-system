@@ -1,54 +1,39 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth.jsx";
 import { useTheme } from "../theme.jsx";
+import { RoleBadge, roleOf } from "./Ui.jsx";
+
+const link = ({ isActive }) =>
+  `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`;
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  async function signOut() {
-    await logout();
-    navigate("/login");
-  }
-
-  const link = ({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""} rounded-xl px-3 py-2 text-sm font-semibold transition`;
+  async function signOut() { await logout(); navigate("/login"); }
 
   return (
-    <header className="app-navbar sticky top-0 z-40 border-b backdrop-blur-xl">
-      <div className="mx-auto flex min-h-[68px] max-w-[1180px] flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
-        <NavLink to="/" className="mr-2 flex shrink-0 items-center gap-2.5 rounded-xl px-1.5 py-1">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-base font-black text-white shadow-sm">L</span>
-          <span className="text-lg font-extrabold tracking-tight">Ledgerly</span>
-        </NavLink>
-
-        <nav className="order-3 flex w-full gap-1 overflow-x-auto pb-0.5 lg:order-2 lg:w-auto" aria-label="Main navigation">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/95 shadow-lg backdrop-blur">
+      <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-2 px-4 py-2 lg:px-6">
+        <div className="mr-3 flex items-center gap-2">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-white font-black">L</div>
+          <span className="text-lg font-extrabold tracking-tight text-white">Ledgerly</span>
+        </div>
+        <nav className="flex flex-wrap gap-1">
           <NavLink to="/" end className={link}>Dashboard</NavLink>
           <NavLink to="/cards/new" className={link}>Cards</NavLink>
           <NavLink to="/pay" className={link}>Payments</NavLink>
           <NavLink to="/transactions" className={link}>Transactions</NavLink>
+          <NavLink to="/analytics" className={link}>Analytics</NavLink>
           {user?.is_staff && <NavLink to="/admin" className={link}>Admin</NavLink>}
         </nav>
-
-        <div className="ml-auto flex items-center gap-2 lg:order-3">
-          <span className="hidden max-w-28 truncate text-sm font-medium sm:block" style={{ color: "var(--nav-muted)" }}>{user?.username}</span>
-          <button
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            className="rounded-xl border px-3 py-2 text-sm font-semibold transition hover:-translate-y-px"
-            style={{ borderColor: "var(--border-strong)", color: "var(--nav-text)", background: "var(--surface)" }}
-          >
-            <span aria-hidden="true">{theme === "dark" ? "☀" : "◐"}</span>
-            <span className="ml-1 hidden sm:inline">{theme === "dark" ? "Light" : "Dark"}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white hover:bg-white/10">
+            {theme === "dark" ? "☀ Light" : "◐ Dark"}
           </button>
-          <button
-            onClick={signOut}
-            className="rounded-xl border px-3 py-2 text-sm font-semibold transition hover:-translate-y-px"
-            style={{ borderColor: "var(--border-strong)", color: "var(--nav-text)", background: "var(--surface)" }}
-          >
-            Log out
-          </button>
+          <span className="hidden items-center gap-2 text-sm text-slate-300 sm:flex">{user?.username}<RoleBadge role={roleOf(user)} /></span>
+          <button onClick={signOut} className="rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">Log out</button>
         </div>
       </div>
     </header>

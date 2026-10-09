@@ -11,9 +11,10 @@ class PaymentRequest(BaseModel):
     card_id: int = Field(gt=0, description="ID of a saved card owned by the caller")
     amount: Decimal = Field(gt=0, le=MAX_PAYMENT_AMOUNT, decimal_places=2, max_digits=12)
     description: str = Field(default="", max_length=255)
-    simulate: Literal["success", "failure"] | None = Field(
-        default=None, description="Force the simulated outcome. Random when omitted."
-    )
+    simulate: Literal["success", "failure"] | None = Field(default=None, description="Force the simulated outcome. Random when omitted.")
+    category: str = Field(default="Other", max_length=80)
+    location: str = Field(default="", max_length=120)
+    device_id: str = Field(default="", max_length=120)
 
     @field_validator("description")
     @classmethod
@@ -33,6 +34,9 @@ class PaymentResponse(BaseModel):
     description: str
     status: Literal["PENDING", "SUCCESS", "FAILED"]
     failure_reason: str
+    fraud_status: str = "CLEAR"
+    fraud_reason: str = ""
+    category: str = "Other"
     created_at: datetime
     updated_at: datetime
 

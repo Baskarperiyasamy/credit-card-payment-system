@@ -12,7 +12,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "email", "is_staff", "is_active", "date_joined", "card_count", "transaction_count")
+        fields = ("id", "username", "email", "is_staff", "is_active", "role", "date_joined", "card_count", "transaction_count")
         read_only_fields = ("id", "username", "email", "is_staff", "date_joined", "card_count", "transaction_count")
 
 
@@ -34,4 +34,12 @@ class AdminLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdminLog
         fields = ("id", "admin", "action", "details", "created_at")
+        read_only_fields = fields
+
+
+from transactions.models import FraudLog
+class FraudLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FraudLog
+        fields = ("id", "transaction_id", "user_id", "reason", "location", "device_id", "created_at")
         read_only_fields = fields
